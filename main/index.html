@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>ESP32 Web Server</title>
+
+    <style>
+
+        body {
+            font-family: Arial;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        button {
+            padding: 12px 25px;
+            margin: 5px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .reset {
+            margin-top: 25px;
+            padding: 12px 30px;
+            font-size: 18px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h1>ESP32 Web Server</h1>
+
+
+    <!-- =========================
+         ESP32 CLOCK
+         ========================= -->
+
+    <h2>Current Time</h2>
+
+    <div id="time" class="value">
+        --:--:--
+    </div>
+
+
+    <!-- =========================
+         LED CONTROL
+         ========================= -->
+
+    <h2>LED</h2>
+
+    <div>
+
+        <button onclick="setLED(1)">
+            LED ON
+        </button>
+
+        <button onclick="setLED(0)">
+            LED OFF
+        </button>
+
+    </div>
+
+
+    <p>
+        LED Status:
+        <span id="led">
+            --
+        </span>
+    </p>
+
+
+    <!-- =========================
+         DATABASE
+         ========================= -->
+
+    <h2>Database</h2>
+
+    <p>
+        Date:
+        <span id="db_date" class="value">
+            --
+        </span>
+    </p>
+
+    <p>
+        Time:
+        <span id="db_time" class="value">
+            --
+        </span>
+    </p>
+
+    <p>
+        LED:
+        <span id="db_led" class="value">
+            --
+        </span>
+    </p>
+
+    <p id="db_status">
+        Database: --
+    </p>
+
+
+    <!-- =========================
+         ESP32 RESET
+         ========================= -->
+
+    <h2>ESP32</h2>
+
+    <button
+        class="reset"
+        onclick="resetESP32()">
+
+        ESP32 RESET
+
+    </button>
+
+
+    <p id="status">
+        Ready
+    </p>
+
+
+<button onclick="sendPhoto()">
+    📷 ارسال عکس
+</button>
+
+<p id="photoStatus"></p>
+
+<script>
+
+async function sendPhoto()
+{
+    const status =
+        document.getElementById("photoStatus");
+
+    status.innerText =
+        "در حال ارسال عکس...";
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/photo/send",
+                {
+                    method: "POST"
+                }
+            );
+
+        const result =
+            await response.json();
+
+        if (result.ok) {
+
+            status.innerText =
+                "✅ عکس با موفقیت به سرور XAMPP ارسال شد";
+
+        } else {
+
+            status.innerText =
+                "❌ ارسال عکس ناموفق بود";
+        }
+
+    } catch (error) {
+
+        status.innerText =
+            "❌ خطا در ارتباط با ESP32";
+
+        console.log(error);
+    }
+}
+
+</script>
+
+    <script>
+
+        /* =====================================================
+           DATABASE
+           ===================================================== */
+
+        async function updateDatabase()
+        {
+            try
+            {
+                /*
+                 * مهم:
+                 * دیگر مستقیماً به XAMPP وصل نمی‌شویم.
+                 *
+                 * ESP32 -> /api/db -> PHP -> MySQL
+                 */
+
+                const response =
+                    await fetch("/api/db");
+
+                if (!response.ok)
+                {
+                    throw new Error(
+                        "HTTP Error " + response.status
+                    );
+                }
+
+                const data =
+                    await response.json();
+
+
+                /* بررسی خطای Database */
+
+                if (data.error)
+                {
+                    document.getElementById("db_status")
+                        .textContent =
+                        "Database: No data";
+
+                    return;
+                }
+
+
+                /* تاریخ */
+
+                document.getElementById("db_date")
+                    .textContent =
+                    data.date || "--";
+
+
+                /* ساعت */
+
+                document.getElementById("db_time")
+                    .textContent =
+                    data.time || "--";
+
+
+                /* وضعیت LED */
+
+                document.getElementById("db_led")
+                    .textContent =
+                    Number(data.led) === 1
+                    ? "ON"
+                    : "OFF";
+
+
+                /* وضعیت ارتباط */
+
+                document.getElementById("db_status")
+                    .textContent =
+                    "Database: Connected";
+
+            }
+            catch(error)
+            {
+                console.log(
+                    "Database error:",
+                    error
+                );
+
+                document.getElementById("db_status")
+                    .textContent =
+                    "Database: ERROR";
+            }
+        }
+
+
+        /*
+         * اولین دریافت اطلاعات
+         */
+
+        updateDatabase();
+
+
+        /*
+         * به‌روزرسانی Database
+         * هر 5 ثانیه
+         */
+
+        setInterval(
+            updateDatabase,
+            5000
+        );
+
+
+        /* =====================================================
+           ESP32 TIME
+           ===================================================== */
+
+        async function updateTime()
+        {
+            try
+            {
+                const response =
+                    await fetch("/api/time");
+
+                if (!response.ok)
+                {
+                    throw new Error(
+                        "HTTP Error " + response.status
+                    );
+                }
+
+                const data =
+                    await response.json();
+
+                document.getElementById("time")
+                    .textContent =
+                    data.time;
+
+            }
+            catch(error)
+            {
+                console.log(
+                    "Time error:",
+                    error
+                );
+
+                document.getElementById("time")
+                    .textContent =
+                    "ERROR";
+            }
+        }
+
+
+        /* =====================================================
+           LED CONTROL
+           ===================================================== */
+
+        async function setLED(state)
+        {
+            try
+            {
+                const response =
+                    await fetch(
+                        "/api/led?state=" + state
+                    );
+
+                if (!response.ok)
+                {
+                    throw new Error(
+                        "LED HTTP Error " +
+                        response.status
+                    );
+                }
+
+                updateLED();
+
+            }
+            catch(error)
+            {
+                console.log(
+                    "LED error:",
+                    error
+                );
+            }
+        }
+
+
+        /* =====================================================
+           LED STATUS
+           ===================================================== */
+
+        async function updateLED()
+        {
+            try
+            {
+                const response =
+                    await fetch("/api/status");
+
+                if (!response.ok)
+                {
+                    throw new Error(
+                        "HTTP Error " +
+                        response.status
+                    );
+                }
+
+                const data =
+                    await response.json();
+
+                document.getElementById("led")
+                    .textContent =
+                    Number(data.led) === 1
+                    ? "ON"
+                    : "OFF";
+
+            }
+            catch(error)
+            {
+                console.log(
+                    "LED status error:",
+                    error
+                );
+
+                document.getElementById("led")
+                    .textContent =
+                    "ERROR";
+            }
+        }
+
+
+        /* =====================================================
+           ESP32 RESET
+           ===================================================== */
+
+        async function resetESP32()
+        {
+            const answer =
+                confirm("Reset ESP32?");
+
+            if (!answer)
+                return;
+
+
+            document.getElementById("status")
+                .textContent =
+                "ESP32 is restarting...";
+
+
+            try
+            {
+                await fetch(
+                    "/api/reset"
+                );
+            }
+            catch(error)
+            {
+                /*
+                 * طبیعی است؛
+                 * ESP32 در حال Restart شدن است.
+                 */
+            }
+
+
+            /*
+             * صبر برای Restart
+             */
+
+            setTimeout(
+                function()
+                {
+                    location.reload();
+                },
+                3000
+            );
+        }
+
+
+        /* =====================================================
+           START
+           ===================================================== */
+
+        updateTime();
+
+        updateLED();
+
+
+        /*
+         * ساعت هر 1 ثانیه
+         */
+
+        setInterval(
+            updateTime,
+            1000
+        );
+
+    </script>
+
+</body>
+
+</html>
