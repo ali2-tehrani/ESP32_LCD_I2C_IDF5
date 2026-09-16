@@ -65,10 +65,6 @@ static const httpd_uri_t ota_upload_uri = {
 #define WIFI_SSID "my_len"
 #define WIFI_PASSWORD "fdsavcxz7"
 
-#define AP_SSID      "ESP32_CLOCK"
-#define AP_PASSWORD  "12345678"
-
-
 extern const uint8_t test_jpg_start[] asm("_binary_test_jpg_start");
 extern const uint8_t test_jpg_end[]   asm("_binary_test_jpg_end");
 #define IMAGE_UPLOAD_URL "http://10.193.5.41:8080/upload.php"
@@ -1577,37 +1573,14 @@ static void ip_event(void *arg, esp_event_base_t base,
 
         ESP_ERROR_CHECK(lcd_init(bus));
         
-        esp_netif_t *ap_netif =
-            esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
-
-        esp_netif_ip_info_t ap_ip_info;
-
-        ESP_ERROR_CHECK(
-            esp_netif_get_ip_info(
-                ap_netif,
-                &ap_ip_info
-            )
-        );
-
-        char ap_ip[17];
-
-        snprintf(
-            ap_ip,
-            sizeof(ap_ip),
-            IPSTR,
-            IP2STR(&ap_ip_info.ip)
-        );
-
         lcd_clear();
 
         lcd_set_cursor(0, 0);
-        lcd_puts("STA:");
-        lcd_puts(ip);
-
+        lcd_puts("WiFi:");
+        
         lcd_set_cursor(0, 1);
-        lcd_puts("AP:");
-        lcd_puts(ap_ip);
-
+        lcd_puts(ip);
+        
         vTaskDelay(pdMS_TO_TICKS(3000));
 
         // Internet available.
@@ -1635,15 +1608,16 @@ static void ip_event(void *arg, esp_event_base_t base,
 static void wifi_init_sta(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    // STA interface
+    ESP_ERROR_CHECK(
+        esp_event_loop_create_default()
+    );
+
+    // فقط STA
     esp_netif_create_default_wifi_sta();
 
-    // AP interface
-    esp_netif_create_default_wifi_ap();
-
-    wifi_init_config_t config = WIFI_INIT_CONFIG_DEFAULT();
+    wifi_init_config_t config =
+        WIFI_INIT_CONFIG_DEFAULT();
 
     ESP_ERROR_CHECK(
         esp_wifi_init(&config)
@@ -1667,7 +1641,6 @@ static void wifi_init_sta(void)
         )
     );
 
-
     // =========================
     // STA configuration
     // =========================
@@ -1689,42 +1662,12 @@ static void wifi_init_sta(void)
     sta_config.sta.threshold.authmode =
         WIFI_AUTH_WPA2_PSK;
 
-
     // =========================
-    // AP configuration
-    // =========================
-
-    wifi_config_t ap_config = {0};
-
-    strncpy(
-        (char *)ap_config.ap.ssid,
-        AP_SSID,
-        sizeof(ap_config.ap.ssid) - 1
-    );
-
-    strncpy(
-        (char *)ap_config.ap.password,
-        AP_PASSWORD,
-        sizeof(ap_config.ap.password) - 1
-    );
-
-    ap_config.ap.ssid_len =
-        strlen(AP_SSID);
-
-    ap_config.ap.channel = 1;
-
-    ap_config.ap.max_connection = 4;
-
-    ap_config.ap.authmode =
-        WIFI_AUTH_WPA2_PSK;
-
-
-    // =========================
-    // AP + STA
+    // فقط Station Mode
     // =========================
 
     ESP_ERROR_CHECK(
-        esp_wifi_set_mode(WIFI_MODE_APSTA)
+        esp_wifi_set_mode(WIFI_MODE_STA)
     );
 
     ESP_ERROR_CHECK(
@@ -1735,53 +1678,18 @@ static void wifi_init_sta(void)
     );
 
     ESP_ERROR_CHECK(
-        esp_wifi_set_config(
-            WIFI_IF_AP,
-            &ap_config
-        )
-    );
-
-    ESP_ERROR_CHECK(
         esp_wifi_start()
     );
 
-    esp_netif_ip_info_t ap_ip_info;
-    esp_netif_t *ap_netif =
-        esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
-
-    ESP_ERROR_CHECK(
-        esp_netif_get_ip_info(
-            ap_netif,
-            &ap_ip_info
-        )
+    ESP_LOGI(
+        TAG,
+        "WiFi STA started"
     );
 
     ESP_LOGI(
         TAG,
-        "AP IP: " IPSTR,
-        IP2STR(&ap_ip_info.ip)
-    );
-
-    ESP_LOGI(
-        TAG,
-        "WiFi AP started"
-    );
-
-    ESP_LOGI(
-        TAG,
-        "AP SSID: %s",
-        AP_SSID
-    );
-
-    ESP_LOGI(
-        TAG,
-        "AP Password: %s",
-        AP_PASSWORD
-    );
-
-    ESP_LOGI(
-        TAG,
-        "AP IP: 192.168.4.1"
+        "Connecting to SSID: %s",
+        WIFI_SSID
     );
 }
 
