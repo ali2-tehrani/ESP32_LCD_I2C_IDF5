@@ -14,28 +14,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find and extract project ZIP
+      - name: Show repository files
         shell: bash
         run: |
-          ZIP=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
+          echo "Repository:"
+          pwd
 
-          if [ -z "$ZIP" ]; then
-            echo "ERROR: Project ZIP not found"
-            exit 1
-          fi
-
-          echo "Using ZIP: $ZIP"
-
-          mkdir project
-          unzip -q "$ZIP" -d project
-
-          echo "Extracted files:"
-          find project -maxdepth 3 -type f | head -100
+          echo "Files:"
+          find . -maxdepth 3 -type f | sort | head -200
 
       - name: Locate ESP-IDF project
         shell: bash
         run: |
-          PROJECT=$(find project -name CMakeLists.txt -type f \
+          PROJECT=$(find . -name CMakeLists.txt -type f \
             -not -path "*/build/*" | head -n 1)
 
           if [ -z "$PROJECT" ]; then
@@ -44,6 +35,9 @@ jobs:
           fi
 
           PROJECT_DIR=$(dirname "$PROJECT")
+
+          echo "ESP-IDF project found:"
+          echo "$PROJECT_DIR"
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
@@ -61,15 +55,29 @@ jobs:
         shell: bash
         run: |
           cd "$PROJECT_DIR"
+
+          echo "Project directory:"
+          pwd
+
+          echo "Setting target..."
           idf.py set-target esp32
+
+          echo "Building firmware..."
           idf.py build
+
+      - name: Show generated firmware
+        shell: bash
+        run: |
+          echo "Generated files:"
+          find "$PROJECT_DIR/build" -maxdepth 3 -type f \
+            \( -name "*.bin" -o -name "*.elf" -o -name "*.map" \) \
+            -print
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
           name: ESP32_LCD_I2C_IDF5-firmware
           path: |
-            ${{ env.PROJECT_DIR }}/build/ESP32_LCD_I2C_IDF5.bin
-            ${{ env.PROJECT_DIR }}/build/bootloader/bootloader.bin
-            ${{ env.PROJECT_DIR }}/build/partition_table/partition-table.bin
-            ${{ env.PROJECT_DIR }}/build/ota_data_initial.bin
+            ${{ env.PROJECT_DIR }}/build/*.bin
+            ${{ env.PROJECT_DIR }}/build/bootloader/*.bin
+            ${{ env.PROJECT_DIR }}/build/partition_table/*.bin
