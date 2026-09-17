@@ -1546,6 +1546,7 @@ static void wifi_event(void *arg, esp_event_base_t base,
 }
 
 static void ip_event(void *arg, esp_event_base_t base,
+static void ip_event(void *arg, esp_event_base_t base,
                      int32_t id, void *data)
 {
     if (
@@ -1556,7 +1557,8 @@ static void ip_event(void *arg, esp_event_base_t base,
         ip_event_got_ip_t *event =
             (ip_event_got_ip_t *)data;
 
-        char ip[17];
+        char ip[16];
+        char gateway[16];
 
         snprintf(
             ip,
@@ -1565,32 +1567,62 @@ static void ip_event(void *arg, esp_event_base_t base,
             IP2STR(&event->ip_info.ip)
         );
 
+        snprintf(
+            gateway,
+            sizeof(gateway),
+            IPSTR,
+            IP2STR(&event->ip_info.gw)
+        );
+
         ESP_LOGI(
             TAG,
-            "STA connected: %s",
+            "ESP32 IP: %s",
             ip
         );
 
+        ESP_LOGI(
+            TAG,
+            "Gateway IP: %s",
+            gateway
+        );
+
         ESP_ERROR_CHECK(lcd_init(bus));
-        
+
         lcd_clear();
 
-        lcd_set_cursor(0, 0);
-        lcd_puts("WiFi:");
-        
-        lcd_set_cursor(0, 1);
-        lcd_puts(ip);
-        
-        vTaskDelay(pdMS_TO_TICKS(3000));
+        char line1[17];
+        char line2[17];
 
-        // Internet available.
-        // Synchronize time.
+        snprintf(
+            line1,
+            sizeof(line1),
+            "IP:%s",
+            ip
+        );
+
+        snprintf(
+            line2,
+            sizeof(line2),
+            "GW:%s",
+            gateway
+        );
+
+        lcd_set_cursor(0, 0);
+        lcd_puts(line1);
+
+        lcd_set_cursor(0, 1);
+        lcd_puts(line2);
+
+        /*
+         * Internet available.
+         * Synchronize time.
+         */
         set_tehran_timezone();
 
         start_sntp();
 
-        if (!tcp_started) {
-
+        if (!tcp_started)
+        {
             tcp_started = true;
 
             xTaskCreate(
@@ -1604,7 +1636,6 @@ static void ip_event(void *arg, esp_event_base_t base,
         }
     }
 }
-
 static void wifi_init_sta(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
