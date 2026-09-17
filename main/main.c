@@ -1563,9 +1563,6 @@ static void ip_event(void *arg, esp_event_base_t base,
         char ip[16];
         char gateway[16];
 
-        /*
-         * Get ESP32 IP and gateway.
-         */
         snprintf(
             ip,
             sizeof(ip),
@@ -1582,47 +1579,42 @@ static void ip_event(void *arg, esp_event_base_t base,
 
         ESP_LOGI(
             TAG,
-            "ESP32 IP address: %s",
+            "ESP32 IP: %s",
             ip
         );
 
         ESP_LOGI(
             TAG,
-            "Gateway IP address: %s",
+            "Gateway IP: %s",
             gateway
         );
 
-        /*
-         * Show ESP32 IP on LCD.
-         */
         ESP_ERROR_CHECK(lcd_init(bus));
 
         lcd_clear();
 
-        lcd_set_cursor(0, 0);
-        lcd_puts("ESP32 IP:");
+        char line1[17];
+        char line2[17];
 
-        lcd_set_cursor(0, 1);
-        lcd_puts(ip);
-
-        vTaskDelay(
-            pdMS_TO_TICKS(3000)
+        snprintf(
+            line1,
+            sizeof(line1),
+            "%s",
+            ip
         );
 
-        /*
-         * Show Gateway IP on LCD.
-         */
-        lcd_clear();
+        snprintf(
+            line2,
+            sizeof(line2),
+            "%s",
+            gateway
+        );
 
         lcd_set_cursor(0, 0);
-        lcd_puts("Gateway:");
+        lcd_puts(line1);
 
         lcd_set_cursor(0, 1);
-        lcd_puts(gateway);
-
-        vTaskDelay(
-            pdMS_TO_TICKS(3000)
-        );
+        lcd_puts(line2);
 
         /*
          * Internet available.
