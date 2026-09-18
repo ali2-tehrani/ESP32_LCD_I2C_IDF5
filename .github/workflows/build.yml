@@ -67,6 +67,10 @@ jobs:
           echo "Custom partition table:"
           cat partitions.csv
 
+          echo
+          echo "Removing old build cache..."
+          rm -rf build
+
       - name: Build ESP32 firmware
         shell: bash
         run: |
