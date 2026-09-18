@@ -14,14 +14,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Show repository files
-        shell: bash
-        run: |
-          echo "Repository:"
-          pwd
-
-          echo "Files:"
-          find . -maxdepth 3 -type f | sort | head -200
+      - name: Install ESP-IDF 5.5.3
+        uses: espressif/install-esp-idf-action@v1
+        with:
+          version: v5.5.3
 
       - name: Locate ESP-IDF project
         shell: bash
@@ -41,26 +37,40 @@ jobs:
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Install ESP-IDF 5.5.3
-        uses: espressif/install-esp-idf-action@v1
-        with:
-          version: v5.5.3
-
       - name: Clean old build
         shell: bash
         run: |
           rm -rf "$PROJECT_DIR/build"
 
-      - name: Build ESP32 firmware
+      - name: Set ESP32 target
+        shell: bash
+        run: |
+          cd "$PROJECT_DIR"
+          idf.py set-target esp32
+
+      - name: Restore project sdkconfig
         shell: bash
         run: |
           cd "$PROJECT_DIR"
 
-          echo "Project directory:"
-          pwd
+          if [ ! -f sdkconfig.old ]; then
+            echo "ERROR: sdkconfig.old not found"
+            exit 1
+          fi
 
-          echo "Setting target..."
-          idf.py set-target esp32
+          mv sdkconfig.old sdkconfig
+
+          echo "Partition configuration:"
+          grep "CONFIG_PARTITION_TABLE" sdkconfig
+
+          echo
+          echo "Custom partition table:"
+          cat partitions.csv
+
+      - name: Build ESP32 firmware
+        shell: bash
+        run: |
+          cd "$PROJECT_DIR"
 
           echo "Building firmware..."
           idf.py build
