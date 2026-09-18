@@ -1,1 +1,3 @@
-build/echo .espressif/echo sdkconfig.old
+build/
+.espressif/
+sdkconfig.old

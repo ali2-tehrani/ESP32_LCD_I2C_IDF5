@@ -1,3 +1,4 @@
+#include "esp_crt_bundle.h"
 #include "lwip/sockets.h"
 #include "lwip/inet.h"
 #include "errno.h"
@@ -32,6 +33,15 @@
 #include "esp_partition.h"
 #include "esp_app_desc.h"
 
+
+// =========================
+// Bale Bot
+// =========================
+
+#define BALE_BOT_TOKEN "644957517:jmJFocWnrzoNugnhSs38PKEKp2cDKTY_ELs"
+#define BALE_CHAT_ID   "644042823"
+
+#define BALE_SEND_MESSAGE_URL "https://tapi.bale.ai/bot" BALE_BOT_TOKEN "/sendMessage"
 
 
 #define WINDOWS_SERVER_IP   "10.193.5.41"
@@ -91,6 +101,112 @@ typedef struct {
     size_t max_len;
     size_t len;
 } http_response_t;
+
+static esp_err_t send_bale_message(const char *message)
+{
+    ESP_LOGI(TAG, "Sending message to Bale...");
+
+    char post_data[512];
+
+    snprintf(
+        post_data,
+        sizeof(post_data),
+        "chat_id=%s&text=%s",
+        BALE_CHAT_ID,
+        message
+    );
+
+    esp_http_client_config_t config = {
+        .url = BALE_SEND_MESSAGE_URL,
+        .timeout_ms = 15000,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+    };
+
+    esp_http_client_handle_t client =
+        esp_http_client_init(&config);
+
+    if (client == NULL)
+    {
+        ESP_LOGE(TAG, "Bale HTTP client init failed");
+        return ESP_FAIL;
+    }
+
+    esp_http_client_set_method(
+        client,
+        HTTP_METHOD_POST
+    );
+
+    esp_http_client_set_header(
+        client,
+        "Content-Type",
+        "application/x-www-form-urlencoded"
+    );
+
+    esp_http_client_set_post_field(
+        client,
+        post_data,
+        strlen(post_data)
+    );
+
+    esp_err_t err =
+        esp_http_client_perform(client);
+
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(
+            TAG,
+            "Bale request failed: %s",
+            esp_err_to_name(err)
+        );
+
+        esp_http_client_cleanup(client);
+        return err;
+    }
+
+    int status =
+        esp_http_client_get_status_code(client);
+
+    ESP_LOGI(
+        TAG,
+        "Bale HTTP status = %d",
+        status
+    );
+
+    char response[512];
+
+    int len =
+        esp_http_client_read_response(
+            client,
+            response,
+            sizeof(response) - 1
+        );
+
+    if (len > 0)
+    {
+        response[len] = '\0';
+
+        ESP_LOGI(
+            TAG,
+            "Bale response: %s",
+            response
+        );
+    }
+
+    esp_http_client_cleanup(client);
+
+    if (status != 200)
+    {
+        ESP_LOGE(
+            TAG,
+            "Bale returned HTTP %d",
+            status
+        );
+
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
 
 static void motion_led_task(void *arg)
 {
@@ -1886,6 +2002,9 @@ void app_main(void)
     test_server_connection();
     vTaskDelay(pdMS_TO_TICKS(2000));
     //send_test_image();
+
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    send_bale_message("Hello from ESP32");
 
 
     xTaskCreate(
