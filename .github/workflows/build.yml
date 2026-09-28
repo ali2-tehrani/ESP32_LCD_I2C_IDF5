@@ -22,17 +22,9 @@ jobs:
       - name: Locate ESP-IDF project
         shell: bash
         run: |
-          PROJECT=$(find . -name CMakeLists.txt -type f \
-            -not -path "*/build/*" | head -n 1)
+          PROJECT_DIR="$GITHUB_WORKSPACE"
 
-          if [ -z "$PROJECT" ]; then
-            echo "ERROR: CMakeLists.txt not found"
-            exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$PROJECT")
-
-          echo "ESP-IDF project found:"
+          echo "ESP-IDF project:"
           echo "$PROJECT_DIR"
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
