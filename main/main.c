@@ -34,7 +34,7 @@
 // Bale Bot
 // =========================
 
-#define BALE_BOT_TOKEN "644957517:9R4BZYmBPFDpYrBDmGaYlj8b-IAc9EdQfTQ"
+#define BALE_BOT_TOKEN "644957517:faZIYwF-Z4eB2ZQDEPCi8m7CMUzBqXxOWdA"
 #define BALE_CHAT_ID   "644042823"
 
 #define BALE_SEND_MESSAGE_URL "https://tapi.bale.ai/bot" BALE_BOT_TOKEN "/sendMessage"
