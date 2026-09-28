@@ -1,7 +1,6 @@
 {
   "idf.currentSetup": "C:\\esp\\v5.5.3\\esp-idf",
   "idf.flashType": "UART",
-  "idf.portWin": "COM6",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32"
   },
@@ -10,5 +9,6 @@
     "--background-index",
     "--query-driver=**",
     "--compile-commands-dir=c:\\my_arduino_works\\my_ESPIDF_works\\ESP32_LCD_I2C_IDF5\\build"
-  ]
+  ],
+  "idf.port": "COM6"
 }
