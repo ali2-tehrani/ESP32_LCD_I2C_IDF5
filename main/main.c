@@ -43,7 +43,7 @@
 
 
 static void start_webserver(void);
-
+static esp_err_t send_bale_message(const char *message);
 
 #define SDA_GPIO 27
 #define SCL_GPIO 26
