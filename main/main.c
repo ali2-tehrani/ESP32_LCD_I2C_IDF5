@@ -1,3 +1,4 @@
+#include "cJSON.h"
 #include "esp_heap_caps.h"
 #include "esp_crt_bundle.h"
 #include "lwip/sockets.h"
@@ -69,6 +70,258 @@ static volatile int64_t motion_led_until = 0;
 
 i2c_master_bus_handle_t bus;
 i2c_master_bus_config_t bus_config;
+
+// =========================
+// Bale getUpdates / Reset
+// =========================
+
+static int64_t bale_update_offset = 0;
+
+static void bale_get_updates_task(void *arg)
+{
+    ESP_LOGI(TAG, "Bale getUpdates task started");
+
+    char url[512];
+    char response[8192];
+
+    while (1)
+    {
+        snprintf(
+            url,
+            sizeof(url),
+            "https://tapi.bale.ai/bot%s/getUpdates?timeout=20&offset=%lld",
+            BALE_BOT_TOKEN,
+            (long long)bale_update_offset
+        );
+
+        esp_http_client_config_t config = {
+            .url = url,
+            .timeout_ms = 30000,
+            .crt_bundle_attach = esp_crt_bundle_attach,
+        };
+
+        esp_http_client_handle_t client =
+            esp_http_client_init(&config);
+
+        if (client == NULL)
+        {
+            ESP_LOGE(
+                TAG,
+                "Bale getUpdates: client init failed"
+            );
+
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            continue;
+        }
+
+        esp_http_client_set_method(
+            client,
+            HTTP_METHOD_GET
+        );
+
+        esp_err_t err =
+            esp_http_client_perform(client);
+
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(
+                TAG,
+                "Bale getUpdates failed: %s",
+                esp_err_to_name(err)
+            );
+
+            esp_http_client_cleanup(client);
+
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            continue;
+        }
+
+        int status =
+            esp_http_client_get_status_code(client);
+
+        if (status != 200)
+        {
+            ESP_LOGE(
+                TAG,
+                "Bale getUpdates HTTP status: %d",
+                status
+            );
+
+            esp_http_client_cleanup(client);
+
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            continue;
+        }
+
+        int len =
+            esp_http_client_read_response(
+                client,
+                response,
+                sizeof(response) - 1
+            );
+
+        esp_http_client_cleanup(client);
+
+        if (len <= 0)
+        {
+            continue;
+        }
+
+        response[len] = '\0';
+
+        ESP_LOGI(
+            TAG,
+            "Bale getUpdates response length: %d",
+            len
+        );
+
+        cJSON *root =
+            cJSON_Parse(response);
+
+        if (root == NULL)
+        {
+            ESP_LOGE(
+                TAG,
+                "Failed to parse Bale JSON"
+            );
+
+            continue;
+        }
+
+        cJSON *ok =
+            cJSON_GetObjectItem(root, "ok");
+
+        if (!cJSON_IsTrue(ok))
+        {
+            ESP_LOGE(
+                TAG,
+                "Bale getUpdates returned ok=false"
+            );
+
+            cJSON_Delete(root);
+            continue;
+        }
+
+        cJSON *result =
+            cJSON_GetObjectItem(root, "result");
+
+        if (!cJSON_IsArray(result))
+        {
+            cJSON_Delete(root);
+            continue;
+        }
+
+        int count =
+            cJSON_GetArraySize(result);
+
+        for (int i = 0; i < count; i++)
+        {
+            cJSON *update =
+                cJSON_GetArrayItem(result, i);
+
+            if (update == NULL)
+                continue;
+
+            // --------------------------------
+            // Update ID
+            // --------------------------------
+
+            cJSON *update_id =
+                cJSON_GetObjectItem(update, "update_id");
+
+            if (cJSON_IsNumber(update_id))
+            {
+                int64_t id =
+                    (int64_t)update_id->valuedouble;
+
+                if (id >= bale_update_offset)
+                {
+                    bale_update_offset = id + 1;
+                }
+            }
+
+            // --------------------------------
+            // Message
+            // --------------------------------
+
+            cJSON *message =
+                cJSON_GetObjectItem(update, "message");
+
+            if (!cJSON_IsObject(message))
+                continue;
+
+            // --------------------------------
+            // Chat ID
+            // --------------------------------
+
+            cJSON *chat =
+                cJSON_GetObjectItem(message, "chat");
+
+            if (!cJSON_IsObject(chat))
+                continue;
+
+            cJSON *chat_id =
+                cJSON_GetObjectItem(chat, "id");
+
+            // --------------------------------
+            // Message text
+            // --------------------------------
+
+            cJSON *text =
+                cJSON_GetObjectItem(message, "text");
+
+            if (!cJSON_IsString(text))
+                continue;
+
+            const char *received_text =
+                text->valuestring;
+
+            ESP_LOGI(
+                TAG,
+                "Bale message: chat_id=%s text=%s",
+                cJSON_IsString(chat_id)
+                    ? chat_id->valuestring
+                    : "(not string)",
+                received_text
+            );
+
+            // --------------------------------
+            // Check our chat + reset command
+            // --------------------------------
+
+            if (
+                cJSON_IsString(chat_id) &&
+                strcmp(
+                    chat_id->valuestring,
+                    BALE_CHAT_ID
+                ) == 0 &&
+                strcmp(
+                    received_text,
+                    "reset"
+                ) == 0
+            )
+            {
+                ESP_LOGW(
+                    TAG,
+                    "RESET command received from Bale!"
+                );
+
+                // Optional confirmation before reboot
+                send_bale_message(
+                    "ESP32 reset command received"
+                );
+
+                vTaskDelay(
+                    pdMS_TO_TICKS(200)
+                );
+
+                esp_restart();
+            }
+        }
+
+        cJSON_Delete(root);
+    }
+}
 
 
 static esp_err_t send_bale_message(const char *message)
@@ -1654,7 +1907,6 @@ void app_main(void)
     ESP_LOGI(TAG, "Test JPEG size: %u bytes", (unsigned)jpg_len);
     send_bale_photo(test_jpg_start, jpg_len);
 
-
     xTaskCreate(
         motion_led_task,
         "motion_led",
@@ -1663,11 +1915,20 @@ void app_main(void)
         5,
         NULL
     );
-
+    
     xTaskCreate(
         motion_udp_task,
         "motion_udp",
         4096,
+        NULL,
+        5,
+        NULL
+    );
+    
+    xTaskCreate(
+        bale_get_updates_task,
+        "bale_updates",
+        8192,
         NULL,
         5,
         NULL
