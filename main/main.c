@@ -2036,7 +2036,7 @@ void app_main(void)
         5,
         NULL
     );
-    /*
+    
     xTaskCreate(
         bale_get_updates_task,
         "bale_updates",
@@ -2045,5 +2045,5 @@ void app_main(void)
         5,
         NULL
     );
-    */
+    
 }
