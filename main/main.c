@@ -75,8 +75,6 @@ i2c_master_bus_config_t bus_config;
 // Bale getUpdates / Reset
 // =========================
 
-static int64_t bale_update_offset = 0;
-
 // =========================
 // Bale getUpdates / Reset
 // =========================
