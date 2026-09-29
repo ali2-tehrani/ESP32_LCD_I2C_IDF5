@@ -77,26 +77,33 @@ i2c_master_bus_config_t bus_config;
 
 static int64_t bale_update_offset = 0;
 
+// =========================
+// Bale getUpdates / Reset
+// =========================
+
+static int64_t bale_update_offset = 0;
+static bool bale_updates_initialized = false;
+
 static void bale_get_updates_task(void *arg)
 {
     ESP_LOGI(TAG, "Bale getUpdates task started");
 
     char url[512];
-    char response[8192];
+    char response[4096];
 
     while (1)
     {
         snprintf(
             url,
             sizeof(url),
-            "https://tapi.bale.ai/bot%s/getUpdates?timeout=20&offset=%lld",
+            "https://tapi.bale.ai/bot%s/getUpdates?timeout=10&offset=%lld",
             BALE_BOT_TOKEN,
             (long long)bale_update_offset
         );
 
         esp_http_client_config_t config = {
             .url = url,
-            .timeout_ms = 30000,
+            .timeout_ms = 15000,
             .crt_bundle_attach = esp_crt_bundle_attach,
         };
 
@@ -105,10 +112,7 @@ static void bale_get_updates_task(void *arg)
 
         if (client == NULL)
         {
-            ESP_LOGE(
-                TAG,
-                "Bale getUpdates: client init failed"
-            );
+            ESP_LOGE(TAG, "Bale getUpdates: client init failed");
 
             vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
@@ -132,7 +136,10 @@ static void bale_get_updates_task(void *arg)
 
             esp_http_client_cleanup(client);
 
+            // IMPORTANT:
+            // Never restart ESP32 because Internet is unavailable.
             vTaskDelay(pdMS_TO_TICKS(5000));
+
             continue;
         }
 
@@ -150,6 +157,7 @@ static void bale_get_updates_task(void *arg)
             esp_http_client_cleanup(client);
 
             vTaskDelay(pdMS_TO_TICKS(5000));
+
             continue;
         }
 
@@ -164,16 +172,11 @@ static void bale_get_updates_task(void *arg)
 
         if (len <= 0)
         {
+            vTaskDelay(pdMS_TO_TICKS(1000));
             continue;
         }
 
         response[len] = '\0';
-
-        ESP_LOGI(
-            TAG,
-            "Bale getUpdates response length: %d",
-            len
-        );
 
         cJSON *root =
             cJSON_Parse(response);
@@ -182,9 +185,10 @@ static void bale_get_updates_task(void *arg)
         {
             ESP_LOGE(
                 TAG,
-                "Failed to parse Bale JSON"
+                "Bale JSON parse failed"
             );
 
+            vTaskDelay(pdMS_TO_TICKS(1000));
             continue;
         }
 
@@ -199,6 +203,9 @@ static void bale_get_updates_task(void *arg)
             );
 
             cJSON_Delete(root);
+
+            vTaskDelay(pdMS_TO_TICKS(5000));
+
             continue;
         }
 
@@ -214,20 +221,81 @@ static void bale_get_updates_task(void *arg)
         int count =
             cJSON_GetArraySize(result);
 
+        /*
+         * First successful request after boot:
+         *
+         * Consume all existing updates but DO NOT execute
+         * any reset command from them.
+         */
+        if (!bale_updates_initialized)
+        {
+            ESP_LOGI(
+                TAG,
+                "Initializing Bale update offset..."
+            );
+
+            for (int i = 0; i < count; i++)
+            {
+                cJSON *update =
+                    cJSON_GetArrayItem(result, i);
+
+                if (update == NULL)
+                    continue;
+
+                cJSON *update_id =
+                    cJSON_GetObjectItem(
+                        update,
+                        "update_id"
+                    );
+
+                if (cJSON_IsNumber(update_id))
+                {
+                    int64_t id =
+                        (int64_t)update_id->valuedouble;
+
+                    if (id >= bale_update_offset)
+                    {
+                        bale_update_offset =
+                            id + 1;
+                    }
+                }
+            }
+
+            bale_updates_initialized = true;
+
+            ESP_LOGI(
+                TAG,
+                "Bale update listener initialized. Offset=%lld",
+                (long long)bale_update_offset
+            );
+
+            cJSON_Delete(root);
+
+            /*
+             * Do NOT process old messages.
+             */
+            continue;
+        }
+
+        /*
+         * Process only new updates.
+         */
         for (int i = 0; i < count; i++)
         {
             cJSON *update =
-                cJSON_GetArrayItem(result, i);
+                cJSON_GetArrayItem(
+                    result,
+                    i
+                );
 
             if (update == NULL)
                 continue;
 
-            // --------------------------------
-            // Update ID
-            // --------------------------------
-
             cJSON *update_id =
-                cJSON_GetObjectItem(update, "update_id");
+                cJSON_GetObjectItem(
+                    update,
+                    "update_id"
+                );
 
             if (cJSON_IsNumber(update_id))
             {
@@ -236,39 +304,25 @@ static void bale_get_updates_task(void *arg)
 
                 if (id >= bale_update_offset)
                 {
-                    bale_update_offset = id + 1;
+                    bale_update_offset =
+                        id + 1;
                 }
             }
 
-            // --------------------------------
-            // Message
-            // --------------------------------
-
             cJSON *message =
-                cJSON_GetObjectItem(update, "message");
+                cJSON_GetObjectItem(
+                    update,
+                    "message"
+                );
 
             if (!cJSON_IsObject(message))
                 continue;
 
-            // --------------------------------
-            // Chat ID
-            // --------------------------------
-
-            cJSON *chat =
-                cJSON_GetObjectItem(message, "chat");
-
-            if (!cJSON_IsObject(chat))
-                continue;
-
-            cJSON *chat_id =
-                cJSON_GetObjectItem(chat, "id");
-
-            // --------------------------------
-            // Message text
-            // --------------------------------
-
             cJSON *text =
-                cJSON_GetObjectItem(message, "text");
+                cJSON_GetObjectItem(
+                    message,
+                    "text"
+                );
 
             if (!cJSON_IsString(text))
                 continue;
@@ -278,21 +332,69 @@ static void bale_get_updates_task(void *arg)
 
             ESP_LOGI(
                 TAG,
-                "Bale message: chat_id=%s text=%s",
-                cJSON_IsString(chat_id)
-                    ? chat_id->valuestring
-                    : "(not string)",
+                "Bale message received: %s",
                 received_text
             );
 
-            // --------------------------------
-            // Check our chat + reset command
-            // --------------------------------
+            /*
+             * Check chat ID.
+             *
+             * Bale may return chat.id as either a string
+             * or a number, so handle both.
+             */
+            cJSON *chat =
+                cJSON_GetObjectItem(
+                    message,
+                    "chat"
+                );
 
+            if (!cJSON_IsObject(chat))
+                continue;
+
+            cJSON *chat_id =
+                cJSON_GetObjectItem(
+                    chat,
+                    "id"
+                );
+
+            char received_chat_id[64] = {0};
+
+            if (cJSON_IsString(chat_id))
+            {
+                snprintf(
+                    received_chat_id,
+                    sizeof(received_chat_id),
+                    "%s",
+                    chat_id->valuestring
+                );
+            }
+            else if (cJSON_IsNumber(chat_id))
+            {
+                snprintf(
+                    received_chat_id,
+                    sizeof(received_chat_id),
+                    "%.0f",
+                    chat_id->valuedouble
+                );
+            }
+            else
+            {
+                continue;
+            }
+
+            ESP_LOGI(
+                TAG,
+                "Bale chat_id=%s text=%s",
+                received_chat_id,
+                received_text
+            );
+
+            /*
+             * ONLY our chat can issue reset.
+             */
             if (
-                cJSON_IsString(chat_id) &&
                 strcmp(
-                    chat_id->valuestring,
+                    received_chat_id,
                     BALE_CHAT_ID
                 ) == 0 &&
                 strcmp(
@@ -303,26 +405,38 @@ static void bale_get_updates_task(void *arg)
             {
                 ESP_LOGW(
                     TAG,
-                    "RESET command received from Bale!"
+                    "NEW RESET COMMAND RECEIVED FROM BALE!"
                 );
 
-                // Optional confirmation before reboot
+                /*
+                 * Send acknowledgement first.
+                 */
                 send_bale_message(
                     "ESP32 reset command received"
                 );
 
                 vTaskDelay(
-                    pdMS_TO_TICKS(200)
+                    pdMS_TO_TICKS(300)
                 );
 
+                /*
+                 * Restart only because a NEW authorized
+                 * reset command was received.
+                 */
                 esp_restart();
             }
         }
 
         cJSON_Delete(root);
+
+        /*
+         * Small delay prevents a tight loop.
+         */
+        vTaskDelay(
+            pdMS_TO_TICKS(500)
+        );
     }
 }
-
 
 static esp_err_t send_bale_message(const char *message)
 {
