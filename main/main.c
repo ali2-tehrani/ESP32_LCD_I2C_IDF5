@@ -144,6 +144,7 @@ static void bale_get_updates_task(void *arg)
 
         int status =
             esp_http_client_get_status_code(client);
+        ESP_LOGI(TAG, "Bale HTTP status: %d", status);
 
         if (status != 200)
         {
@@ -654,7 +655,10 @@ static esp_err_t send_bale_photo(const uint8_t *jpg_data, size_t jpg_len)
                                    (const char *)body,
                                    total_len);
 
+    ESP_LOGI(TAG, "Calling Bale getUpdates...");
     esp_err_t err = esp_http_client_perform(client);
+    ESP_LOGI(TAG, "Bale getUpdates perform returned: %s",esp_err_to_name(err));
+    
 
     if (err != ESP_OK) {
         ESP_LOGE(TAG,
