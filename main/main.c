@@ -43,7 +43,7 @@
 // Bale bot token.
 // ============================================================
 
-#define BALE_BOT_TOKEN "YOUR_NEW_BALE_BOT_TOKEN"
+#define BALE_BOT_TOKEN "644957517:x2yiPXwJG6hX6GoLshBZ9jiPVYOwSQXuOtI"
 #define BALE_CHAT_ID   "644042823"
 
 #define BALE_SEND_MESSAGE_URL \
