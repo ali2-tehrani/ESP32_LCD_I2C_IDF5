@@ -98,6 +98,7 @@ static void bale_get_updates_task(void *arg)
             BALE_BOT_TOKEN,
             (long long)bale_update_offset
         );
+        ESP_LOGI(TAG, "Bale getUpdates URL: %s", url);
 
         esp_http_client_config_t config = {
             .url = url,
