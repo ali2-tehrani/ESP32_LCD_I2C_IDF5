@@ -286,13 +286,9 @@ static esp_err_t send_bale_message(
 
 static void bale_get_updates_task(void *arg)
 {
-    ESP_LOGI(
-        TAG,
-        "Bale getUpdates task started"
-    );
+    ESP_LOGI(TAG, "Bale getUpdates task started");
 
     char url[512];
-
     char response[8192];
 
     while (1)
@@ -304,12 +300,6 @@ static void bale_get_updates_task(void *arg)
             BALE_BOT_TOKEN,
             (long long)bale_update_offset
         );
-
-        /*
-         * DO NOT print url.
-         *
-         * It contains the bot token.
-         */
 
         esp_http_client_config_t config = {
             .url = url,
@@ -327,10 +317,7 @@ static void bale_get_updates_task(void *arg)
                 "Bale getUpdates client init failed"
             );
 
-            vTaskDelay(
-                pdMS_TO_TICKS(5000)
-            );
-
+            vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
         }
 
@@ -341,17 +328,12 @@ static void bale_get_updates_task(void *arg)
 
         ESP_LOGI(
             TAG,
-            "Calling Bale getUpdates..."
+            "Calling Bale getUpdates, offset=%lld",
+            (long long)bale_update_offset
         );
 
         esp_err_t err =
             esp_http_client_perform(client);
-
-        ESP_LOGI(
-            TAG,
-            "Bale getUpdates result: %s",
-            esp_err_to_name(err)
-        );
 
         if (err != ESP_OK)
         {
@@ -363,21 +345,12 @@ static void bale_get_updates_task(void *arg)
 
             esp_http_client_cleanup(client);
 
-            vTaskDelay(
-                pdMS_TO_TICKS(5000)
-            );
-
+            vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
         }
 
         int status =
             esp_http_client_get_status_code(client);
-
-        ESP_LOGI(
-            TAG,
-            "Bale HTTP status: %d",
-            status
-        );
 
         int len =
             esp_http_client_read_response(
@@ -395,14 +368,17 @@ static void bale_get_updates_task(void *arg)
 
             esp_http_client_cleanup(client);
 
-            vTaskDelay(
-                pdMS_TO_TICKS(2000)
-            );
-
+            vTaskDelay(pdMS_TO_TICKS(2000));
             continue;
         }
 
         response[len] = '\0';
+
+        ESP_LOGI(
+            TAG,
+            "Bale HTTP status: %d",
+            status
+        );
 
         ESP_LOGI(
             TAG,
@@ -426,10 +402,7 @@ static void bale_get_updates_task(void *arg)
                 status
             );
 
-            vTaskDelay(
-                pdMS_TO_TICKS(5000)
-            );
-
+            vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
         }
 
@@ -443,18 +416,12 @@ static void bale_get_updates_task(void *arg)
                 "Bale JSON parse failed"
             );
 
-            vTaskDelay(
-                pdMS_TO_TICKS(1000)
-            );
-
+            vTaskDelay(pdMS_TO_TICKS(1000));
             continue;
         }
 
         cJSON *ok =
-            cJSON_GetObjectItem(
-                root,
-                "ok"
-            );
+            cJSON_GetObjectItem(root, "ok");
 
         if (!cJSON_IsTrue(ok))
         {
@@ -465,18 +432,12 @@ static void bale_get_updates_task(void *arg)
 
             cJSON_Delete(root);
 
-            vTaskDelay(
-                pdMS_TO_TICKS(5000)
-            );
-
+            vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
         }
 
         cJSON *result =
-            cJSON_GetObjectItem(
-                root,
-                "result"
-            );
+            cJSON_GetObjectItem(root, "result");
 
         if (!cJSON_IsArray(result))
         {
@@ -487,10 +448,7 @@ static void bale_get_updates_task(void *arg)
 
             cJSON_Delete(root);
 
-            vTaskDelay(
-                pdMS_TO_TICKS(1000)
-            );
-
+            vTaskDelay(pdMS_TO_TICKS(1000));
             continue;
         }
 
@@ -505,15 +463,20 @@ static void bale_get_updates_task(void *arg)
 
 
         // ====================================================
-        // First successful request
+        // FIRST SUCCESSFUL REQUEST
+        //
+        // Skip all old messages.
+        // Move offset to the first update after them.
         // ====================================================
 
         if (!bale_updates_initialized)
         {
             ESP_LOGI(
                 TAG,
-                "Initializing Bale update offset..."
+                "Initializing Bale update listener..."
             );
+
+            int64_t newest_update_id = -1;
 
             for (int i = 0; i < count; i++)
             {
@@ -532,39 +495,42 @@ static void bale_get_updates_task(void *arg)
                         "update_id"
                     );
 
-                if (cJSON_IsNumber(update_id))
-                {
-                    int64_t id =
-                        (int64_t)update_id->valuedouble;
+                if (!cJSON_IsNumber(update_id))
+                    continue;
 
-                    if (id >= bale_update_offset)
-                    {
-                        bale_update_offset =
-                            id + 1;
-                    }
+                int64_t id =
+                    (int64_t)update_id->valuedouble;
+
+                if (id > newest_update_id)
+                {
+                    newest_update_id = id;
                 }
+            }
+
+            if (newest_update_id >= 0)
+            {
+                bale_update_offset =
+                    newest_update_id + 1;
             }
 
             bale_updates_initialized = true;
 
             ESP_LOGI(
                 TAG,
-                "Bale update listener initialized. Offset=%lld",
+                "Bale listener initialized. New offset=%lld",
                 (long long)bale_update_offset
             );
 
             cJSON_Delete(root);
 
-            vTaskDelay(
-                pdMS_TO_TICKS(500)
-            );
+            vTaskDelay(pdMS_TO_TICKS(500));
 
             continue;
         }
 
 
         // ====================================================
-        // Process new updates
+        // PROCESS NEW UPDATES
         // ====================================================
 
         for (int i = 0; i < count; i++)
@@ -589,17 +555,40 @@ static void bale_get_updates_task(void *arg)
                     "update_id"
                 );
 
-            if (cJSON_IsNumber(update_id))
-            {
-                int64_t id =
-                    (int64_t)update_id->valuedouble;
+            if (!cJSON_IsNumber(update_id))
+                continue;
 
-                if (id >= bale_update_offset)
-                {
-                    bale_update_offset =
-                        id + 1;
-                }
+            int64_t id =
+                (int64_t)update_id->valuedouble;
+
+
+            // Ignore an update already processed.
+            if (id < bale_update_offset)
+            {
+                ESP_LOGI(
+                    TAG,
+                    "Ignoring old update_id=%lld",
+                    (long long)id
+                );
+
+                continue;
             }
+
+
+            // Advance offset immediately.
+            //
+            // This guarantees that this update will not
+            // be processed again after the next polling cycle.
+            //
+
+            bale_update_offset = id + 1;
+
+            ESP_LOGI(
+                TAG,
+                "Processing update_id=%lld, next offset=%lld",
+                (long long)id,
+                (long long)bale_update_offset
+            );
 
 
             // ------------------------------------------------
@@ -631,12 +620,6 @@ static void bale_get_updates_task(void *arg)
 
             const char *received_text =
                 text->valuestring;
-
-            ESP_LOGI(
-                TAG,
-                "Bale message received: %s",
-                received_text
-            );
 
 
             // ------------------------------------------------
@@ -688,9 +671,10 @@ static void bale_get_updates_task(void *arg)
                 continue;
             }
 
+
             ESP_LOGI(
                 TAG,
-                "Bale chat_id=%s text=%s",
+                "Bale message: chat_id=%s text=%s",
                 received_chat_id,
                 received_text
             );
@@ -721,14 +705,9 @@ static void bale_get_updates_task(void *arg)
             {
                 ESP_LOGW(
                     TAG,
-                    "NEW RESET COMMAND RECEIVED FROM BALE!"
+                    "RESET COMMAND RECEIVED FROM BALE"
                 );
 
-                /*
-                 * Acknowledgement is optional.
-                 * Even if sending the acknowledgement
-                 * fails, ESP32 will still restart.
-                 */
                 send_bale_message(
                     "ESP32 reset command received"
                 );
@@ -753,8 +732,6 @@ static void bale_get_updates_task(void *arg)
         );
     }
 }
-
-
 // ============================================================
 // Bale photo
 // ============================================================
