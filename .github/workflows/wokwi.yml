@@ -1,115 +1,38 @@
-```yaml
-name: ESP32 Build and Wokwi Simulation
+name: ESP32 IDF5 Wokwi
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+push:
+workflow_dispatch:
 
 jobs:
-  build-and-simulate:
-    runs-on: ubuntu-latest
+build-and-test:
+runs-on: ubuntu-latest
 
-    steps:
-      # ---------------------------------------------------------
-      # 1. Checkout repository
-      # ---------------------------------------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
+```
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v4
 
-      # ---------------------------------------------------------
-      # 2. Build ESP-IDF firmware
-      # ---------------------------------------------------------
-      - name: Build ESP-IDF firmware
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v5.5.3
-          target: esp32
-          path: .
+  - name: Build ESP-IDF firmware
+    uses: espressif/esp-idf-ci-action@v1
+    with:
+      esp_idf_version: v5.3
+      target: esp32
+      path: .
 
-      # ---------------------------------------------------------
-      # 3. Install Wokwi CLI
-      # ---------------------------------------------------------
-      - name: Install Wokwi CLI
-        run: |
-          curl -L https://wokwi.com/ci/install.sh | sh
-          echo "$HOME/.wokwi/bin" >> "$GITHUB_PATH"
+  - name: Test with Wokwi
+    uses: wokwi/wokwi-ci-action@v1
+    with:
+      token: ${{ secrets.WOKWI_CLI_TOKEN }}
+      path: .
+      timeout: 10000
+      serial_log_file: wokwi-serial.log
 
-      # ---------------------------------------------------------
-      # 4. Verify Wokwi CLI installation
-      # ---------------------------------------------------------
-      - name: Check Wokwi CLI options
-        run: |
-          echo "========== WOKWI VERSION =========="
-          wokwi-cli --version
-
-          echo "========== WOKWI HELP =========="
-          wokwi-cli --help
-
-          echo "========== RELEVANT OPTIONS =========="
-          wokwi-cli --help | grep -E "serial|expect|fail|timeout|scenario" || true
-
-      # ---------------------------------------------------------
-      # 5. Verify firmware and Wokwi files
-      # ---------------------------------------------------------
-      - name: Verify Wokwi firmware files
-        run: |
-          echo "========== BUILD FILES =========="
-
-          ls -lh build/ESP32_LCD_I2C_IDF5.bin
-          ls -lh build/ESP32_LCD_I2C_IDF5.elf
-          ls -lh build/flasher_args.json
-
-          echo "========== FLASHER ARGS =========="
-
-          cat build/flasher_args.json
-
-          echo "========== DIAGRAM =========="
-
-          cat diagram.json
-
-          echo "========== WOKWI CONFIG =========="
-
-          cat wokwi.toml
-
-      # ---------------------------------------------------------
-      # 6. Run Wokwi simulation
-      # ---------------------------------------------------------
-      - name: Run Wokwi simulation
-        continue-on-error: true
-        env:
-          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
-        run: |
-          echo "========== STARTING WOKWI =========="
-
-          wokwi-cli . --timeout 10000
-
-      # ---------------------------------------------------------
-      # 7. Show serial log if available
-      # ---------------------------------------------------------
-      - name: Show Wokwi serial log
-        if: always()
-        run: |
-          echo "========== WOKWI SERIAL LOG =========="
-
-          if [ -f wokwi.log ]; then
-            ls -lh wokwi.log
-            cat wokwi.log
-          else
-            echo "wokwi.log does not exist."
-          fi
-
-          echo "========== END WOKWI SERIAL LOG =========="
-
-      # ---------------------------------------------------------
-      # 8. Upload Wokwi log
-      # ---------------------------------------------------------
-      - name: Upload Wokwi log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: wokwi-log
-          path: wokwi.log
-          if-no-files-found: ignore
+  - name: Upload Wokwi serial log
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: wokwi-serial-log
+      path: wokwi-serial.log
+      if-no-files-found: ignore
 ```
