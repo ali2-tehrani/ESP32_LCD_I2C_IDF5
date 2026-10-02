@@ -5,9 +5,12 @@ on: [push, workflow_dispatch]
 jobs:
 build-and-test:
 runs-on: ubuntu-latest
+
+```
 steps:
-- name: Checkout repository
-uses: actions/checkout@v4
+  - name: Checkout repository
+    uses: actions/checkout@v4
+
   - name: Build ESP-IDF firmware
     uses: espressif/esp-idf-ci-action@v1
     with:
@@ -21,17 +24,4 @@ uses: actions/checkout@v4
       token: ${{ secrets.WOKWI_CLI_TOKEN }}
       path: .
       timeout: 10000
-      serial_log_file: wokwi-serial.log
-
-  - name: Upload Wokwi serial log
-    if: always()
-    uses: actions/upload-artifact@v4
-    with:
-      name: wokwi-serial-log
-      path: wokwi-serial.log
-      if-no-files-found: ignore
-
-
-
-
-
+```
