@@ -1,0 +1,26 @@
+name: ESP32 Wokwi Simulation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  wokwi:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Install Wokwi CLI
+        run: |
+          curl -L https://wokwi.com/ci/install.sh | sh
+          echo "$HOME/.wokwi/bin" >> "$GITHUB_PATH"
+
+      - name: Run Wokwi
+        env:
+          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+        run: |
+          wokwi-cli . --timeout 60000

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "author": "ESP32 Bale Wokwi",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {"builder":"esp-idf"} },
+    { "type": "wokwi-lcd1602", "id": "lcd", "top": -5, "left": 300, "attrs": { "pins": "i2c", "i2cAddress": "0x27" } },
+    { "type": "wokwi-led", "id": "led", "top": 160, "left": 320, "attrs": { "color": "red" } },
+    { "type": "wokwi-resistor", "id": "r1", "top": 160, "left": 250, "attrs": { "value": "220" } }
+  ],
+  "connections": [
+    [ "esp:D27", "lcd:SDA", "green", [] ],
+    [ "esp:D26", "lcd:SCL", "blue", [] ],
+    [ "esp:VIN", "lcd:VCC", "red", [] ],
+    [ "esp:GND.1", "lcd:GND", "black", [] ],
+    [ "esp:D2", "r1:1", "green", [] ],
+    [ "r1:2", "led:A", "green", [] ],
+    [ "led:C", "esp:GND.2", "black", [] ]
+  ]
+}
