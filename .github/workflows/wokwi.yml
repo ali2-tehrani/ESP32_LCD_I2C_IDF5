@@ -1,4 +1,4 @@
-name: ESP32 Wokwi Simulation
+name: ESP32 Build and Wokwi Simulation
 
 on:
   push:
@@ -7,19 +7,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  wokwi:
+  build-and-simulate:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout project
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Build ESP-IDF firmware
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.3
+          target: esp32
+          path: .
 
       - name: Install Wokwi CLI
         run: |
           curl -L https://wokwi.com/ci/install.sh | sh
           echo "$HOME/.wokwi/bin" >> "$GITHUB_PATH"
 
-      - name: Run Wokwi
+      - name: Run Wokwi simulation
         env:
           WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
         run: |
