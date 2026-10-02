@@ -31,17 +31,14 @@ jobs:
         env:
           WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
         run: |
-          wokwi-cli . --timeout 60000 --serial-log-file wokwi.log
+          wokwi-cli . --timeout 10000 --serial-log-file wokwi.log
 
       - name: Show Wokwi serial log
         if: always()
         run: |
           echo "========== WOKWI SERIAL LOG =========="
-          if [ -f wokwi.log ]; then
-            cat wokwi.log
-          else
-            echo "wokwi.log was not created"
-          fi
+          ls -l wokwi.log || true
+          cat wokwi.log
           echo "========== END WOKWI SERIAL LOG =========="
 
       - name: Upload Wokwi log
