@@ -10,7 +10,6 @@ jobs:
 build-and-simulate:
 runs-on: ubuntu-latest
 
-```
 steps:
   - name: Checkout repository
     uses: actions/checkout@v4
@@ -119,4 +118,9 @@ steps:
         wokwi.log
         wokwi-cli-output.log
       if-no-files-found: warn
-```
+
+
+
+
+
+
