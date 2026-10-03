@@ -2707,6 +2707,20 @@ static void wifi_init_sta(void)
 
 void app_main(void)
 {
+    printf("\n\n");
+    printf("========================================\n");
+    printf("ESP32_LCD_I2C_IDF5 STARTED\n");
+    printf("ESP-IDF firmware is running\n");
+    printf("SDA = GPIO27\n");
+    printf("SCL = GPIO26\n");
+    printf("LED = GPIO2\n");
+    printf("LCD = I2C 0x27\n");
+    printf("========================================\n");
+    
+    ESP_LOGI(TAG, "app_main() entered");
+    
+
+    
     esp_err_t ret =
         nvs_flash_init();
 
