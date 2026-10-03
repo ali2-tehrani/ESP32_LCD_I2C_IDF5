@@ -1,3 +1,4 @@
+#include "driver/uart.h"
 #include "cJSON.h"
 #include "esp_heap_caps.h"
 #include "esp_crt_bundle.h"
@@ -148,6 +149,36 @@ static void bale_get_updates_task(
     void *arg
 );
 
+static void serial_test_task(void *arg)
+{
+    uint8_t ch;
+    char buffer[128];
+    int pos = 0;
+
+    while (1) {
+        int len = uart_read_bytes(
+            UART_NUM_0,
+            &ch,
+            1,
+            pdMS_TO_TICKS(100)
+        );
+
+        if (len > 0) {
+            if (ch == '\n' || ch == '\r') {
+                if (pos > 0) {
+                    buffer[pos] = '\0';
+
+                    printf("ESP32 RECEIVED: %s\n", buffer);
+                    printf("ESP32 RESPONSE: OK\n");
+
+                    pos = 0;
+                }
+            } else if (pos < sizeof(buffer) - 1) {
+                buffer[pos++] = (char)ch;
+            }
+        }
+    }
+}
 
 // ============================================================
 // Bale sendMessage
@@ -2884,6 +2915,15 @@ void app_main(void)
     xTaskCreate(
         motion_udp_task,
         "motion_udp",
+        4096,
+        NULL,
+        5,
+        NULL
+    );
+
+    xTaskCreate(
+        serial_test_task,
+        "serial_test",
         4096,
         NULL,
         5,
