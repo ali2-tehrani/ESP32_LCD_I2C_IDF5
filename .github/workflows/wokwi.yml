@@ -1,96 +1,122 @@
 name: ESP32 Build and Wokwi Simulation
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+push:
+branches:
+- main
+workflow_dispatch:
 
 jobs:
-  build-and-simulate:
-    runs-on: ubuntu-latest
+build-and-simulate:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+```
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v4
 
-      - name: Build ESP-IDF firmware
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v5.5.3
-          target: esp32
-          path: .
+  - name: Build ESP-IDF firmware
+    uses: espressif/esp-idf-ci-action@v1
+    with:
+      esp_idf_version: v5.5.3
+      target: esp32
+      path: .
 
-      - name: Install Wokwi CLI
-        run: |
-          curl -L https://wokwi.com/ci/install.sh | sh
-          echo "$HOME/.wokwi/bin" >> "$GITHUB_PATH"
+  - name: Install Wokwi CLI
+    run: |
+      curl -L https://wokwi.com/ci/install.sh | sh
+      echo "$HOME/.wokwi/bin" >> "$GITHUB_PATH"
 
-      - name: Verify Wokwi firmware files
-        run: |
-          echo "========== BUILD FILES =========="
-          ls -lh build/ESP32_LCD_I2C_IDF5.bin
-          ls -lh build/ESP32_LCD_I2C_IDF5.elf
-          ls -lh build/flasher_args.json
-          echo "========== FLASHER ARGS =========="
-          cat build/flasher_args.json
-          echo "========== DIAGRAM =========="
-          cat diagram.json
-          echo "========== WOKWI CONFIG =========="
-          cat wokwi.toml
-          
+  - name: Verify Wokwi firmware files
+    run: |
+      echo "========== BUILD FILES =========="
 
+      ls -lh build/ESP32_LCD_I2C_IDF5.bin
+      ls -lh build/ESP32_LCD_I2C_IDF5.elf
+      ls -lh build/flasher_args.json
 
-      - name: Run Wokwi simulation
-        continue-on-error: true
-        env:
-          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
-        run: |
-          wokwi-cli . --timeout 10000 --serial-log-file wokwi.log
+      echo "========== FLASHER ARGS =========="
+      cat build/flasher_args.json
 
-      - name: Run Wokwi serial test
-        env:
-          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
-        run: |
-          rm -f wokwi.log
-          rm -f wokwi-cli-output.log
+      echo "========== DIAGRAM =========="
+      cat diagram.json
 
-          echo "========== START WOKWI =========="
+      echo "========== WOKWI CONFIG =========="
+      cat wokwi.toml
 
-          printf "HELLO ESP32\n" | \
-            wokwi-cli . \
-              --timeout 10000 \
-              --interactive \
-              --serial-log-file wokwi.log \
-              > wokwi-cli-output.log 2>&1
+  - name: Run Wokwi simulation
+    env:
+      WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+    run: |
+      rm -f wokwi.log
+      rm -f wokwi-cli-output.log
 
-          EXIT_CODE=$?
+      echo "========== START WOKWI =========="
 
-          echo "========== EXIT CODE =========="
-          echo "$EXIT_CODE"
+      set +e
 
-          echo "========== CLI OUTPUT =========="
-          cat wokwi-cli-output.log || true
+      wokwi-cli . \
+        --timeout 10000 \
+        --serial-log-file wokwi.log \
+        2>&1 | tee wokwi-cli-output.log
 
-          echo "========== ESP32 SERIAL LOG =========="
-          cat wokwi.log || true
+      EXIT_CODE=${PIPESTATUS[0]}
 
-          echo "========== END WOKWI =========="
+      set -e
 
-          exit $EXIT_CODE
+      echo "========== WOKWI EXIT CODE =========="
+      echo "$EXIT_CODE"
 
-      - name: Show Wokwi serial log
-        if: always()
-        run: |
-          echo "========== WOKWI SERIAL LOG =========="
-          ls -l wokwi.log || true
-          cat wokwi.log
-          echo "========== END WOKWI SERIAL LOG =========="
+      echo "========== WOKWI CLI OUTPUT FILE =========="
+      if [ -f wokwi-cli-output.log ]; then
+        cat wokwi-cli-output.log
+      else
+        echo "wokwi-cli-output.log was not created"
+      fi
 
-      - name: Upload Wokwi log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: wokwi-log
-          path: wokwi.log
-          if-no-files-found: ignore
+      echo "========== WOKWI SERIAL LOG =========="
+      if [ -f wokwi.log ]; then
+        ls -lh wokwi.log
+        wc -c wokwi.log
+        cat wokwi.log
+      else
+        echo "wokwi.log was not created"
+      fi
+
+      echo "========== END WOKWI =========="
+
+      exit $EXIT_CODE
+
+  - name: Show Wokwi logs
+    if: always()
+    run: |
+      echo "========== FINAL WOKWI CLI OUTPUT =========="
+
+      if [ -f wokwi-cli-output.log ]; then
+        cat wokwi-cli-output.log
+      else
+        echo "wokwi-cli-output.log was not found"
+      fi
+
+      echo "========== FINAL WOKWI SERIAL LOG =========="
+
+      if [ -f wokwi.log ]; then
+        ls -lh wokwi.log
+        wc -c wokwi.log
+        cat wokwi.log
+      else
+        echo "wokwi.log was not found"
+      fi
+
+      echo "========== END FINAL LOGS =========="
+
+  - name: Upload Wokwi logs
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: wokwi-logs
+      path: |
+        wokwi.log
+        wokwi-cli-output.log
+      if-no-files-found: warn
+```
