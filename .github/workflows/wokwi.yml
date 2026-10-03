@@ -1,4 +1,4 @@
-name: ESP32 Build and Wokwi Simulation
+name: ESP32 Build and Wokwi Simu
 
 on:
   push:
@@ -39,14 +39,32 @@ jobs:
           echo "========== WOKWI CONFIG =========="
           cat wokwi.toml
           
-
-
       - name: Run Wokwi simulation
-        continue-on-error: true
         env:
           WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
         run: |
-          wokwi-cli . --timeout 10000 --serial-log-file wokwi.log
+          rm -f wokwi.log
+    
+          echo "========== START WOKWI =========="
+    
+          wokwi-cli . --timeout 10000  --serial-log-file wokwi.log
+    
+          EXIT_CODE=$?
+    
+          echo "========== WOKWI EXIT CODE =========="
+          echo "$EXIT_CODE"
+    
+          echo "========== WOKWI LOG FILE =========="
+          if [ -f wokwi.log ]; then
+            wc -c wokwi.log
+            cat wokwi.log
+          else
+            echo "ERROR: wokwi.log was not created"
+          fi
+    
+          echo "========== END WOKWI =========="
+    
+          exit $EXIT_CODE
 
       - name: Show Wokwi serial log
         if: always()
