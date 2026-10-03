@@ -48,21 +48,6 @@ jobs:
         run: |
           wokwi-cli . --timeout 10000 --serial-log-file wokwi.log
 
-      - name: Show Wokwi serial log
-        if: always()
-        run: |
-          echo "========== WOKWI SERIAL LOG =========="
-          ls -l wokwi.log || true
-          cat wokwi.log
-          echo "========== END WOKWI SERIAL LOG =========="
-
-      - name: Upload Wokwi log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: wokwi-log
-          path: wokwi.log
-          if-no-files-found: ignore
       - name: Run Wokwi serial test
         env:
           WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
@@ -93,3 +78,19 @@ jobs:
           echo "========== END WOKWI =========="
 
           exit $EXIT_CODE
+
+      - name: Show Wokwi serial log
+        if: always()
+        run: |
+          echo "========== WOKWI SERIAL LOG =========="
+          ls -l wokwi.log || true
+          cat wokwi.log
+          echo "========== END WOKWI SERIAL LOG =========="
+
+      - name: Upload Wokwi log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wokwi-log
+          path: wokwi.log
+          if-no-files-found: ignore
