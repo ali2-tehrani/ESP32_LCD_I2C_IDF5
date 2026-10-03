@@ -51,12 +51,7 @@ jobs:
       - name: Show Wokwi serial log
         if: always()
         run: |
-          printf "HELLO ESP32\n" | \
-            wokwi-cli . \
-              --timeout 10000 \
-              --interactive \
-              --serial-log-file wokwi.log \
-              > wokwi-cli-output.log 2>&1
+          printf "HELLO ESP32\n" | wokwi-cli . --timeout 10000 --interactive --serial-log-file wokwi.log > wokwi-cli-output.log 2>&1
           echo "========== WOKWI SERIAL LOG =========="
           ls -l wokwi.log || true
           cat wokwi.log
